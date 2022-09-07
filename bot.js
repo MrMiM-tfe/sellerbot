@@ -8,8 +8,16 @@ const bot = mineflayer.createBot({
 
 bot.once('spawn' ,() => {
     console.log('done');
-    bot.chat('/login mahdi9909')
+    bot.once('spawn' ,() => {
+        bot.chat('/survival')
+    })
+    
+
 })
+setTimeout(() => {
+    bot.chat('/login mahdi9909')
+    
+}, 5000);
 
 bot.on('chat' , (user ,msg) => {
     console.log(msg);
