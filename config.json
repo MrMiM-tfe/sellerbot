@@ -1,0 +1,24 @@
+{
+    "bot_info": {
+        "username": "MrMiM",
+        "version": "1.16.1",
+        "host": "play.madcraft.ir",
+        "port":25565
+    },
+
+    "__comment2": "put position of trash Chest ( optional )",
+    "trash_pos":{
+        "x":100520,
+        "y":66,
+        "z":22084
+    },
+    "trash_timeout" : 0,
+
+    "admins": ["MrMiM","zed500"],
+
+    "chatLog":true,
+    "errorLog":true,
+    "infoLog":true,
+    "userNameLog":true,
+    "on_done_log":false
+}
