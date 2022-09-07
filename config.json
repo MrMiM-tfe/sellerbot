@@ -6,12 +6,20 @@
         "port":25565
     },
 
+    "__comment1": "put position of storage",
+    "storage_pos":{
+        "x":-103,
+        "y":68,
+        "z":-2079
+    },
+
     "__comment2": "put position of trash Chest ( optional )",
     "trash_pos":{
         "x":100520,
         "y":66,
         "z":22084
     },
+
     "trash_timeout" : 0,
     "login_timeout" : 5000,
 
