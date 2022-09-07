@@ -1,6 +1,7 @@
 const mineflayer = require("mineflayer")
 const config = require('./config.json')
 
+
 const Login = (bot) => {
     setTimeout(() => {
         bot.chat('/login mahdi9909')
@@ -16,18 +17,25 @@ const Login = (bot) => {
 }
 
 const ManageChat = (bot) => {
-    bot.on("chat", (username, message) => {
+    bot.on("messagestr", (message) => {
 
         // Check if chat Log is true in the config.json
-        if (bot.config.chatLog) {
-            console.log(username, "||", message);
-        }
 
-        // Run commands
+            console.log(message);
+        
+
+    //     // Run commands
         const command = message.split(" ")
         console.log(command);
+        try {
+            var username = command[2].replace(":", "")
+        } catch (error) {
+            var username = ""
+            
+        }
+
         if (config.admins.includes(username)) { // Check if message is from admins
-            switch (command[1]) {
+            switch (command[3]) {
 
                 // put items in trash Dispenser
                 case "trash":
@@ -43,12 +51,14 @@ const ManageChat = (bot) => {
     })
 }
 
+
 const createBot = () => {
     const bot = mineflayer.createBot({
-        username: config.bot_info.username,
-        host: config.host,
-        version: config.version
+        username: "MrMiM",
+        host: "play.paradise-city.ir",
+        version: "1.16.5"
     })
+    
 
     Login(bot)
     ManageChat(bot)
@@ -56,5 +66,4 @@ const createBot = () => {
     bot.on('kicked', console.log)
     bot.on('error', console.log)
 }
-
 createBot()
