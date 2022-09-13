@@ -63,6 +63,16 @@ const ManageChat = (bot) => {
                 case "pay":
                     pay(bot, command[4])
                     break
+                case 'bal':
+                    bot.chat('/bal')
+
+                    var listener = async (message) => {
+                        if (message.includes('Balance:')) {
+                            bot.chat(`/msg ${command[4]} ${message}`)
+                        }
+                    };
+                    bot.on('messagestr', listener);
+                    break
             }
         }
     })
@@ -75,8 +85,8 @@ function pay(bot, username) {
     var listener = async (message) => {
         if (message.includes('Balance:')) {
             var bal = message.split(' ')[1]
-            bal = bal.replace('$' , '')
-            bal = bal.replace(',' , '')
+            bal = bal.replace('$', '')
+            bal = bal.replace(',', '')
             bot.chat(`/pay ${username} ${bal}`)
             bot.removeListener('messagestr', listener);
         }
@@ -93,34 +103,73 @@ function logInventory(bot) {
 var continueSell;
 const sellItem = (bot, action) => {
     if (action == "start") {
+        var timeout = setTimeout(() => {
+            sellItem(bot, 'stop')
+            sellItem(bot, 'start')
+        }, 30000)
+        var step = ''
         continueSell = true
         const StoragePOS = bot.blockAt(vec3(config.storage_pos.x, config.storage_pos.y, config.storage_pos.z))
         bot.unequip("hand")
         bot.openBlock(StoragePOS, new vec3(0, 1, 0)).then(async (storage) => {
             await ClickWindow(bot, storage, 22, 1, 1)
             await storage.close()
-            bot.chat('/shop')
-            bot.once("windowOpen", async (shop) => {
-                await ClickWindow(bot, shop, 19, 1, 0)
-                bot.once("windowOpen", async (shop2) => {
-                    var myInt = setInterval(async ()=>{
-                        await ClickWindow(bot, shop2, 23, 1, 1)
-                    }, 300)
-                    var listener = async (message) => {
-                        if (message.includes('SHOP You')) {
-                            await bot.closeWindow(shop2)
-                            bot.removeListener('messagestr', listener);
-                            clearInterval(myInt)
-                        }
-                    };
-                    bot.on('messagestr', listener);
-                    bot.once("windowClose", async (shop2) => {
+            var shopInt = setInterval(async () => {
+                bot.chat('/shop')
+                step = 'open_shop'
+            }, 300);
+            let myInt0 , myInt
+            var OpenListener = async (window) => {
+                switch (step) {
+                    case 'open_shop':
+                        clearInterval(shopInt)
+                        myInt0 = setInterval(async () => {
+                            step = 'click_ores'
+                            await ClickWindow(bot, window, 19, 1, 0)
+                        }, 300);
+                        break;
+                    case 'click_ores':
+                        myInt = setInterval(async () => {
+                            clearInterval(myInt0)
+                            await ClickWindow(bot, window, 23, 1, 1)
+                        }, 300)
+                        var listener = async (message) => {
+                            if (message.includes('SHOP You')) {
+                                bot.removeListener('messagestr', listener);
+                                clearInterval(myInt)
+                                step = 'solled'
+                                await bot.closeWindow(window)
+                            }
+                        };
+                        bot.on('messagestr', listener);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            bot.on('windowOpen', OpenListener)
+            var CloseListener = () => {
+                switch (step) {
+                    case 'solled':
                         if (continueSell) {
+                            clearTimeout(timeout)
                             sellItem(bot, "start")
+                            bot.removeListener("windowOpen" , OpenListener)
+                            bot.removeListener("windowClose" , CloseListener)
                         }
-                    })
-                })
-            })
+                        break;
+                    case 'close_shop':
+
+                        break
+                    case 'open_shop':
+                        bot.chat('/shop')
+                        break
+                    default:
+                        bot.chat('/shop')
+                        break;
+                }
+            }
+            bot.on('windowClose', CloseListener)
         }).catch(err => {
             if (continueSell) {
                 sellItem(bot, "start")
@@ -141,6 +190,7 @@ const createBot = () => {
 
     Login(bot)
     ManageChat(bot)
+
     bot.on('kicked', console.log)
     bot.on('error', console.log)
 
@@ -148,6 +198,6 @@ const createBot = () => {
 }
 const bot = createBot()
 
-bot.on('kicked' , ()=>{
+bot.on('kicked', () => {
     createBot()
 })
