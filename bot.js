@@ -109,72 +109,78 @@ const sellItem = (bot, action) => {
         }, 30000)
         var step = ''
         continueSell = true
-        const StoragePOS = bot.blockAt(vec3(config.storage_pos.x, config.storage_pos.y, config.storage_pos.z))
-        bot.unequip("hand")
-        bot.openBlock(StoragePOS, new vec3(0, 1, 0)).then(async (storage) => {
-            await ClickWindow(bot, storage, 22, 1, 1)
-            await storage.close()
-            var shopInt = setInterval(async () => {
-                bot.chat('/shop')
+        try {
+            const StoragePOS = bot.blockAt(vec3(config.storage_pos.x, config.storage_pos.y, config.storage_pos.z))
+            bot.openBlock(StoragePOS, new vec3(0, 1, 0)).then(async (storage) => {
+                await ClickWindow(bot, storage, 22, 1, 1)
+                await bot.closeWindow(storage)
+                let myInt0, myInt, shopInt
                 step = 'open_shop'
-            }, 300);
-            let myInt0 , myInt
-            var OpenListener = async (window) => {
-                switch (step) {
-                    case 'open_shop':
-                        clearInterval(shopInt)
-                        myInt0 = setInterval(async () => {
-                            step = 'click_ores'
-                            await ClickWindow(bot, window, 19, 1, 0)
-                        }, 300);
-                        break;
-                    case 'click_ores':
-                        myInt = setInterval(async () => {
-                            clearInterval(myInt0)
-                            await ClickWindow(bot, window, 23, 1, 1)
-                        }, 300)
-                        var listener = async (message) => {
-                            if (message.includes('SHOP You')) {
-                                bot.removeListener('messagestr', listener);
-                                clearInterval(myInt)
-                                step = 'solled'
-                                await bot.closeWindow(window)
+                bot.chat('/shop')
+                var OpenListener = async (window) => {
+                    switch (step) {
+                        case 'open_shop':
+                            clearInterval(shopInt)
+                            myInt0 = setInterval(async () => {
+                                step = 'click_ores'
+                                await ClickWindow(bot, window, 19, 1, 0)
+                            }, 300);
+                            break;
+                        case 'click_ores':
+                            myInt = setInterval(async () => {
+                                clearInterval(myInt0)
+                                await ClickWindow(bot, window, 23, 1, 1)
+                            }, 300)
+                            var listener = async (message) => {
+                                if (message.includes('SHOP You')) {
+                                    bot.removeListener('messagestr', listener);
+                                    clearInterval(myInt)
+                                    step = 'solled'
+                                    await bot.closeWindow(window)
+                                }
+                            };
+                            bot.on('messagestr', listener);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                bot.on('windowOpen', OpenListener)
+                var CloseListener = () => {
+                    switch (step) {
+                        case 'solled':
+                            if (continueSell) {
+                                clearTimeout(timeout)
+                                sellItem(bot, "start")
+                                bot.removeListener("windowOpen", OpenListener)
+                                bot.removeListener("windowClose", CloseListener)
+                            }else{
+                                clearTimeout(timeout)
+                                bot.removeListener("windowOpen", OpenListener)
+                                bot.removeListener("windowClose", CloseListener)
                             }
-                        };
-                        bot.on('messagestr', listener);
-                        break;
-                    default:
-                        break;
+                            break;
+                        case 'open_shop':
+                            bot.chat('/shop')
+                            break
+                        default:
+                            bot.chat('/shop')
+                            break;
+                    }
                 }
-            }
-            bot.on('windowOpen', OpenListener)
-            var CloseListener = () => {
-                switch (step) {
-                    case 'solled':
-                        if (continueSell) {
-                            clearTimeout(timeout)
-                            sellItem(bot, "start")
-                            bot.removeListener("windowOpen" , OpenListener)
-                            bot.removeListener("windowClose" , CloseListener)
-                        }
-                        break;
-                    case 'close_shop':
-
-                        break
-                    case 'open_shop':
-                        bot.chat('/shop')
-                        break
-                    default:
-                        bot.chat('/shop')
-                        break;
+                bot.on('windowClose', CloseListener)
+            }).catch(err => {
+                if (continueSell) {
+                    sellItem(bot, "start")
                 }
-            }
-            bot.on('windowClose', CloseListener)
-        }).catch(err => {
+            })
+        } catch (error) {
             if (continueSell) {
                 sellItem(bot, "start")
             }
-        })
+        }
+
+        bot.unequip("hand")
     } else if (action == "stop") {
         continueSell = false
     }
