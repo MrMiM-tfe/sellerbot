@@ -1,30 +1,93 @@
 const mineflayer = require("mineflayer")
-const config = require('./config.json')
 const vec3 = require("vec3")
 const ClickWindow = require('./lib/clickWindow')
+const fs = require('fs')
+const { log, inputBar } = require("blessed-console-input")
+const color = require("./lib/colors")
+var cReset = color.reset
+
+// global.console.log = log
+global.console.log = () => {}
+
+// Print ERRORS
+function addError(bot, err) {
+    if (bot.config.errorLog) {
+        log(color.bg.red + color.dim + "[ERROR]" + cReset + " " + color.fg.red + err + cReset);
+    }
+    if (bot.config.errMSG) {
+        for (admin of bot.config.admins) {
+            bot.chat(`/msg ${admin} [ERROR] ${info}`)
+        }
+    }
+}
+
+// Print Infos
+function setInfo(bot, info) {
+    if (bot.config.infoLog) {
+        log(color.bg.green + color.dim + "[INFO]" + cReset + " " + color.fg.green + info + cReset)
+    }
+    if (bot.config.infoMSG) {
+        for (admin of bot.config.admins) {
+            bot.chat(`/msg ${admin} [INFO] ${info}`)
+        }
+    }
+}
 
 const Login = (bot) => {
+    const pass = bot.config.bot_info.password
     setTimeout(() => {
-        bot.chat('/register 99099909 99099909')
-        bot.chat('/login 99099909')
-    }, 5000);
+        bot.chat(`/register ${pass} ${pass}`)
+        setTimeout(() => { bot.chat(`/login ${pass}`) }, 300)
+    }, bot.config.login_timeout);
     bot.once('spawn', () => {
         bot.once('spawn', () => {
-            bot.chat('/survival')
+            bot.chat(bot.config.server_command)
             bot.once('spawn', () => {
             })
         })
     })
 }
 
+function ManageCommand(bot ,command, args = []) {
+    switch (command) {
+        // put items in trash Dispenser
+        case "trash":
+            trash(bot)
+            break;
+        // tp to player
+        case "tp":
+            bot.chat(`/tpa ${args[0]}`)
+            break
+        // sell items
+        case "sell":
+            if (args[0] == "stop") {
+                sellItem(bot, "stop")
+            } else {
+                sellItem(bot, "start")
+            }
+            break
+        // log inventory
+        case "inv":
+            logInventory(bot)
+            break
+        case "pay":
+            pay(bot, args[0])
+            break
+        case 'bal':
+            bal(bot)
+            break
+        case 'say':
+            breaknode
+    }
+}
+
 const ManageChat = (bot) => {
     bot.on("messagestr", (message) => {
 
         // Check if chat Log is true in the config.json
-        if (config.chatLog) {
-            console.log(message);
+        if (bot.config.chatLog) {
+            log(color.bg.blue + color.dim + "[CHAT]" + cReset + " " + color.fg.blue + message + cReset);
         }
-
 
         // Run commands
         const command = message.split(" ")
@@ -33,49 +96,52 @@ const ManageChat = (bot) => {
         } catch (err) {
             var username = ""
         }
+
+        var cmd = command[3]
+        var args = command.slice(4)
         // Check if message is from admins
-        if (config.admins.includes(username)) {
-            switch (command[3]) {
-
-                // put items in trash Dispenser
-                case "trash":
-                    trash(bot)
-                    break;
-
-                // tp to player
-                case "tp":
-                    bot.chat(`/tpa ${command[4]}`)
-                    break
-
-                // sell items
-                case "sell":
-                    if (command[4] == "stop") {
-                        sellItem(bot, "stop")
-                    } else {
-                        sellItem(bot, "start")
-                    }
-                    break
-
-                // log inventory
-                case "inv":
-                    logInventory(bot)
-                    break
-                case "pay":
-                    pay(bot, command[4])
-                    break
-                case 'bal':
-                    bot.chat('/bal')
-
-                    var listener = async (message) => {
-                        if (message.includes('Balance:')) {
-                            bot.chat(`/msg ${command[4]} ${message}`)
-                        }
-                    };
-                    bot.on('messagestr', listener);
-                    break
-            }
+        if (bot.config.admins.includes(username)) {
+            ManageCommand(bot ,cmd, args)
         }
     })
+}
+
+// Put items in trash chest
+async function trash(bot) {
+    bot.unequip("hand")
+
+    // fined trash Dispenser
+    const TrashChestPos = bot.blockAt(vec3(bot.config.trash_pos.x, bot.config.trash_pos.y, bot.config.trash_pos.z))
+    const items = bot.inventory.items();
+    const itemTyps = []
+    items.forEach(item => {
+        itemTyps.push({
+            'type': item.type,
+            'meta': item.metadata,
+            'count': item.count
+        });
+    });
+
+    bot.openChest(TrashChestPos).then((chest) => {
+
+        function dipositor(i) {
+            if (i >= itemTyps.length) {
+                chest.close();
+                setInfo(bot, "all items are in trash")
+                return
+            }
+            chest.deposit(itemTyps[i].type, itemTyps[i].metadata, itemTyps[i].count)
+            setTimeout(() => {
+                dipositor(i + 1)
+            }, 500)
+        }
+
+        dipositor(0)
+    }).catch((err) => {
+        addError(bot, "Can not fined Trash Dispenser!")
+    });
+
+
 }
 
 // Pay mony
@@ -94,9 +160,27 @@ function pay(bot, username) {
     bot.on('messagestr', listener);
 }
 
+// send Ball to admins
+function bal(bot) {
+    bot.chat('/bal')
+    // Balance:
+    var listener = async (message) => {
+        if (message.includes('Balance:')) {
+            var bal = message.split(' ')[1]
+            bal = bal.replace('$', '')
+            bal = bal.replace(',', '')
+            for (admin of bot.config.admins) {
+                bot.chat(`/msg ${admin} Balance: ${bal}`)
+            }
+            bot.removeListener('messagestr', listener);
+        }
+    };
+    bot.on('messagestr', listener);
+}
+
 // log inventory items
 function logInventory(bot) {
-    console.log(bot.inventory.item());
+    log(bot.inventory.item());
 }
 
 // sell items
@@ -110,7 +194,7 @@ const sellItem = (bot, action) => {
         var step = ''
         continueSell = true
         try {
-            const StoragePOS = bot.blockAt(vec3(config.storage_pos.x, config.storage_pos.y, config.storage_pos.z))
+            const StoragePOS = bot.blockAt(vec3(bot.config.storage_pos.x, bot.config.storage_pos.y, bot.config.storage_pos.z))
             bot.openBlock(StoragePOS, new vec3(0, 1, 0)).then(async (storage) => {
                 await ClickWindow(bot, storage, 22, 1, 1)
                 await bot.closeWindow(storage)
@@ -154,7 +238,7 @@ const sellItem = (bot, action) => {
                                 sellItem(bot, "start")
                                 bot.removeListener("windowOpen", OpenListener)
                                 bot.removeListener("windowClose", CloseListener)
-                            }else{
+                            } else {
                                 clearTimeout(timeout)
                                 bot.removeListener("windowOpen", OpenListener)
                                 bot.removeListener("windowClose", CloseListener)
@@ -186,24 +270,43 @@ const sellItem = (bot, action) => {
     }
 }
 
-const createBot = () => {
+const createBot = (config) => {
     const bot = mineflayer.createBot({
-        username: "ATSMan",
-        host: "play.paradise-city.ir",
-        version: "1.16.5"
+        username: config.bot_info.username,
+        host: config.bot_info.host,
+        version: config.bot_info.version,
+        port: config.bot_info.port
     })
 
+    bot.config = config
 
     Login(bot)
     ManageChat(bot)
 
-    bot.on('kicked', console.log)
-    bot.on('error', console.log)
+    bot.on('kicked', log)
+    bot.on('error', log)
 
     return bot
 }
-const bot = createBot()
 
-bot.on('kicked', () => {
-    createBot()
+var bot = {};
+fs.readFile('./config.json', 'utf8', (err, data) => {
+    if (err) {
+        console.error(err);
+        return;
+    }
+    const config = JSON.parse(data)
+    log(config);
+    bot = createBot(config)
+});
+
+inputBar.on("submit", (text) => {
+    try {
+        var cmds = text.split(' ')
+        var cmd = cmds[0]
+        var args = cmd.slice(1)
+        ManageCommand(bot, cmd, args)
+    } catch (error) {
+        log(error.message)
+    }
 })
